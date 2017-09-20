@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="Generator" content="EditPlus®">
+<!--   <script type="text/javascript" src="js/phaser.js"></script>
+  <script type="text/javascript" src="js/wuziqi_ai.js"></script>
+  <script type="text/javascript" src="js/wuziqi.js"></script> -->
+  <script type="text/javascript" src="http://examples.phaser.io/_site/phaser/phaser.2.6.2.min.js"></script>
+  <style>
+  	.game-box {
+  		margin:30px auto;
+		/*justify-content: center;
+  		display: flex;*/
+  	}
+  </style>
+  </object>
+  <title>wuziqi</title>
+ </head>
+ <body>
+ 	<div class="game-box">
+ 		  <div id="wuziqi" style="overflow: hidden;"></div>
+ 	</div>
+ </body>
+ <script type="text/javascript">
+ /**
+  * AI
+  */
+ var wuziqi_ai = function(paramater){
+ 	/*全局变量定义*/
+ 	this.init();
+ };
+ wuziqi_ai.prototype = {
+ 		wins:[], //包含棋子矩阵、赢法的数组
+ 		playerWins:[], //玩家每种赢法的连子数
+ 		computerWins:[], //电脑每种赢法的连子数
+ 		count:[], //总的赢法数
+ 		/*初始化函数*/
+ 		init:function(){
+ 			//初始化棋子矩阵、赢法数组
+ 			this.wins=[];
+ 			for(var i=0;i<15;i++){
+ 				this.wins[i] = [];
+ 				for(var j=0;j<15;j++){
+ 					this.wins[i][j]=[];
+ 				}
+ 			}
+
+ 			this.playerWins=[];//玩家每种赢法的连子数
+ 			this.computerWins=[];//电脑每种赢法的连子数
+ 			this.count=[];//总的赢法数
+ 			//计算统计总的赢法数
+ 			this.computeWinCount();
+ 			//初始化玩家和电脑的连子数
+ 			for(var k=0;k<this.count;k++){
+ 				this.playerWins[k]=0; //玩家每种赢法的连子数，连5子赢
+ 				this.computerWins[k]=0; //电脑每种赢法的连子数，连5子赢
+ 			}
+ 		},
+ 		//计算输赢，统计所有的赢法
+ 		computeWinCount:function(){
+ 			//统计所有的赢法count
+ 			this.count = 0;
+ 			//第一类赢法，左->右 连5子
+ 			for(var i=0;i<15;i++){
+ 				for(var j=0;j<11;j++){
+ 					for(var k=0;k<5;k++){
+ 						//如果连5子，这5子的这种赢法[count]设成true
+ 						this.wins[i][j+k][this.count] = true;
+ 					}
+ 					this.count++;
+ 				}
+ 			}
+ 			//第二类赢法，上->下 连5子
+ 			for(var i=0;i<11;i++){
+ 				for(var j=0;j<15;j++){
+ 					for(var k=0;k<5;k++){
+ 						//如果连5子，这5子的这种赢法[count]设成true
+ 						this.wins[i+k][j][this.count] = true;
+ 					}
+ 					this.count++;
+ 				}
+ 			}
+ 			//第三类赢法，左上->右下 连5子
+ 			for(var i=0;i<11;i++){
+ 				for(var j=0;j<11;j++){
+ 					for(var k=0;k<5;k++){
+ 						//如果连5子，这5子的这种赢法[count]设成true
+ 						this.wins[i+k][j+k][this.count] = true;
+ 					}
+ 					this.count++;
+ 				}
+ 			}
+ 			//第四类赢法，右上->左下 连5子
+ 			for(var i=0;i<11;i++){
+ 				for(var j=14;j>3;j--){
+ 					for(var k=0;k<5;k++){
+ 						//如果连5子，这5子的这种赢法[count]设成true
+ 						this.wins[i+k][j-k][this.count] = true;
+ 					}
+ 					this.count++;
+ 				}
+ 			}
+ 		},
+ 		//落子后，判断是否为赢
+ 		isWin:function(i,j,isPlayer){
+ 			var result = {isOver:false};
+ 			for(var k=0;k<this.count;k++){
+ 				//寻找当前落子位置的那几种赢法
+ 				if(this.wins[i][j][k]){
+ 					//这枚棋子是玩家下的
+ 					if(isPlayer){
+ 						//玩家当前落子位置的连子数增加一枚
+ 						this.playerWins[k]++;
+ 						this.computerWins[k]=-1;
+ 						//如果当前赢法连子数为5，即5子连成一条线，则为赢
+ 						if(this.playerWins[k]==5){
+ 							result.isOver=true;
+ 						}
+ 					//这枚棋子是电脑下的
+ 					}else{
+ 						//电脑当前落子位置的连子数增加一枚
+ 						this.computerWins[k]++;
+ 						this.playerWins[k]=-1;
+ 						//如果当前赢法连子数为5，即5子连成一条线，则为赢
+ 						if(this.computerWins[k]==5){
+ 							result.isOver=true;
+ 						}
+ 					}
+ 				}
+ 			}
+ 			return result;
+ 		},
+ 		//计算机走法
+ 		computerAI:function(chessBoard){
+ 			//初始化落子分数
+ 			var playerScore=[];//玩家在棋盘矩阵中每个位置落子的分数
+ 			var computerScore=[];//电脑在棋盘矩阵中每个位置落子的分数
+ 			var memoryMaxScore=0;//计算每个点的分数，记录最大分数
+ 			var chessPiecesPos={i:0,j:0};//记录最大分数的位置
+ 			for(var i=0;i<15;i++){
+ 				playerScore[i]=[];
+ 				computerScore[i]=[];
+ 				for(var j=0;j<15;j++){
+ 					playerScore[i][j]=0;
+ 					computerScore[i][j]=0;
+ 				}
+ 			}
+ 			//循环判断棋盘的每个落子点
+ 			for(var i=0;i<15;i++){
+ 				for(var j=0;j<15;j++){
+ 					//判断当前点为空点，并没有被占用
+ 					if(chessBoard[i][j]==undefined){
+ 						/*
+ 						 * AI分析：
+ 						 * 	1、当要填入这个点时，需要确认与这个点某个方向上有几个棋子，假如说有3个黑子，再填入一个黑子就能连成4个黑子
+ 						 * 	2、某个方向上，已经连接棋子越多分数越大，电脑就越应该填入这个位置
+ 						 * 	3、不一定会有一种方向，也可能是多个方向，所以这个位置的分数要在各个方向评分中累加
+ 						 * 	4、this.count代表每个位置的所有赢法，所以要用this.wins[i][j][k]==true锁定当前位置的所有赢法
+ 						 * 	5、this.playerWins[k]和this.computerWins[k]是每个赢法的连子数，判断这个来累加分数
+ 						 */
+ 						for(var k=0;k<this.count;k++){
+ 							//锁定与这个点有关的赢法
+ 							if(this.wins[i][j][k]){
+ 								/*
+ 								 * 玩家赢法分数累加：
+ 								 * 玩家这种赢法的连子数==1时，加200分
+ 								 */
+ 								if(this.playerWins[k]==1){
+ 									playerScore[i][j] += 200;
+ 								}else if(this.playerWins[k]==2){
+ 									playerScore[i][j] += 400;
+ 								}else if(this.playerWins[k]==3){
+ 									playerScore[i][j] += 2000;
+ 								}else if(this.playerWins[k]==4){
+ 									playerScore[i][j] += 10000;
+ 								}
+ 								/*
+ 								 * 电脑赢法分数累加：
+ 								 * 因为当前轮到电脑下棋，所以各个分数比玩家高一些，
+ 								 * 而电脑一旦有机会5连时，让电脑5连
+ 								 */
+ 								if(this.computerWins[k]==1){
+ 									computerScore[i][j] += 220;
+ 								}else if(this.computerWins[k]==2){
+ 									computerScore[i][j] += 420;
+ 								}else if(this.computerWins[k]==3){
+ 									computerScore[i][j] += 2100;
+ 								}else if(this.computerWins[k]==4){
+ 									computerScore[i][j] += 20000;
+ 								}
+ 							}
+ 						}
+ 						
+ 						//获取最大分数，记录最大分数的位置
+ 						if(playerScore[i][j] > memoryMaxScore){
+ 							memoryMaxScore = playerScore[i][j];
+ 							chessPiecesPos.i = i;
+ 							chessPiecesPos.j = j;
+ 						}else if(playerScore[i][j] == memoryMaxScore){
+ 							if(computerScore[i][j] > memoryMaxScore){
+ 								memoryMaxScore = computerScore[i][j];
+ 								chessPiecesPos.i = i;
+ 								chessPiecesPos.j = j;
+ 							}
+ 						}
+ 						
+ 						if(computerScore[i][j] > memoryMaxScore){
+ 							memoryMaxScore = computerScore[i][j];
+ 							chessPiecesPos.i = i;
+ 							chessPiecesPos.j = j;
+ 						}else if(computerScore[i][j] == memoryMaxScore){
+ 							if(playerScore[i][j] > memoryMaxScore){
+ 								memoryMaxScore = playerScore[i][j];
+ 								chessPiecesPos.i = i;
+ 								chessPiecesPos.j = j;
+ 							}
+ 						}
+ 					}
+ 				}
+ 			}
+ 			return {
+ 				playerScore:playerScore,
+ 				computerScore:computerScore,
+ 				memoryMaxScore:memoryMaxScore,
+ 				chessPiecesPos:{
+ 					i:chessPiecesPos.i,
+ 					j:chessPiecesPos.j
+ 				}
+ 			};
+ 			
+ 		}
+ }
+/*
+ * 界面 
+ */
+
+ /*
+ 首先要实例化一个Phaser.Game对象，所有的游戏资源都要通过game对象来设置，宽/高=500px
+ 图形画面可选择auto、webgl、canvas，但手机端不支持webgl所以，默认就是Phaser.CANVAS
+ 'phaser-example'是div的id，用于创建canvas并显示游戏
+ */
+ var game = new Phaser.Game(600, 600, Phaser.AUTO, 'wuziqi');
+ //创建周期函数
+ var wuziqi = {};
+ wuziqi.play = function(game){};
+ wuziqi.play.prototype = {
+ 	line:null,
+ 	graphics:null,
+ 	topX:85,
+ 	topY:121,
+ 	roadWidth:30,
+ 	roadPoints:{x:[],y:[]},
+ 	keyboardCursors:null,
+ 	chessPiecesPos:{x:0,y:0},
+ 	//预加载
+ 	preload:function(){
+ 		//设置背景色，game.stage来设置基本样式
+ 		game.stage.backgroundColor = 'rgba(0,0,0,0.5)';
+ 		/*
+ 		game.scale（就是Phaser.Game.scale）用于设置画布显示的类
+ 		*/
+ 		//显示模式 = Phaser.ScaleManager.SHOW_ALL（画面全部显示，并等比例缩放，用于适应手机屏幕大小显示）
+ 		game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
+ 		//设置画布最小最大尺寸，无论设备屏幕大小，总有个最大最小尺寸
+ 		game.scale.setMinMax(300, 300, 600, 600);
+ 		/*
+ 		game.load:加载器，用于把image、sprite、audio加载到游戏队列中
+ 		通过key来从队列中获取资源，如下面的'square'就是key
+ 		*/
+ 		game.load.image('bgImg', 'img/wuziqi_bg.jpg');
+ 		//加载bmp图像文字
+ 		//game.load.bitmapFont('desyrel', 'assets/fonts/bitmapFonts/desyrel.png', 'assets/fonts/bitmapFonts/desyrel.xml');
+ 		//game.load.image('knightHawks', 'assets/fonts/retroFonts/KNIGHT3.png');
+ 		//加载按钮图片
+ 		//game.load.spritesheet('button', 'assets/buttons/button_sprite_sheet.png', 193, 71);
+ 		
+ 	},
+ 	//创建
+ 	create:function(){
+ 		var me = this;
+ 		bgImg = game.add.image(0,0,'bgImg');
+ 		//创建棋盘
+ 		me.drawCheckerboard();
+ 		//初始化棋子容器
+ 		me.chessPiecesAllSpr=me.chessPiecesAllPos=new Array(15);
+ 		for(var i=0;i<15;i++){
+ 			me.chessPiecesAllSpr[i]=me.chessPiecesAllPos[i]=new Array(15);
+ 		}
+ 		me.chessPiecesMemory=[];
+ 		//初始化回合数
+ 		me.roundCount=0;
+ 		//创建键盘输入
+ 		me.keyboardCursors = game.input.keyboard.createCursorKeys();
+ 		//鼠标进入画布时有作用
+ 		game.input.mouse.capture = true;
+ 		//创建AI对象
+ 		me.ai = new wuziqi_ai();
+ 	},
+ 	//循环
+ 	update:function(){
+ 		if (this.keyboardCursors.up.isDown){
+ 			//if (cursors.up.shiftKey){} //键盘按住
+ 		}
+ 		if(game.input.x>this.topX-this.roadWidth/2 &&
+ 			game.input.y>this.topY-this.roadWidth/2 &&
+ 			game.input.x<this.topX+this.roadWidth*14+this.roadWidth/2 &&
+ 			game.input.y<this.topY+this.roadWidth*14+this.roadWidth/2) {
+ 				if (game.input.activePointer.leftButton.isDown){
+ 					this.mouseIsDown = true;
+ 				}
+ 				if (this.mouseIsDown && game.input.activePointer.leftButton.isUp) {
+ 					//获取鼠标点击的位置，计算出所在棋盘的坐标
+ 					this.chessPiecesPos.x = Math.round((game.input.x-this.topX)/this.roadWidth);
+ 					this.chessPiecesPos.y = Math.round((game.input.y-this.topY)/this.roadWidth);
+ 					//判断该位置没有棋子，则填入棋子
+ 					if(this.chessPiecesAllPos[this.chessPiecesPos.x][this.chessPiecesPos.y] === undefined){
+ 						//玩家下棋，绘制棋子
+ 						this.dropPiece(0,this.chessPiecesPos.x,this.chessPiecesPos.y);
+ 						if(this.ai.isWin(this.chessPiecesPos.x,this.chessPiecesPos.y,true).isOver){
+ 							this.mouseIsDown = false;
+ 							alert("玩家赢");
+ 						}else{
+ 							//电脑下棋，计算要下的位置
+ 							var computerAI = this.ai.computerAI(this.chessPiecesAllPos);
+ 							var aiPos = computerAI.chessPiecesPos;
+// 							this.playerScore = computerAI.playerScore[this.chessPiecesPos.x][this.chessPiecesPos.y];
+// 							this.computerScore = computerAI.computerScore[this.chessPiecesPos.x][this.chessPiecesPos.y];
+// 							this.memoryMaxScore = computerAI.memoryMaxScore;
+ 							//电脑下棋，绘制棋子
+ 							this.dropPiece(1,aiPos.i,aiPos.j);
+ 							if(this.ai.isWin(aiPos.i,aiPos.j,false).isOver){
+ 								this.mouseIsDown = false;
+ 								alert("电脑赢");
+ 							}
+ 						}
+ 					}
+ 					this.mouseIsDown = false;
+ 				}
+ 			}
+ 	},
+ 	render:function() {
+//   	game.debug.geom(line);
+// 		game.debug.text("x: "+this.chessPiecesPos.x + "| y: " + this.chessPiecesPos.y,20,20,"#000000");
+// 		game.debug.text("i: "+this.roadPoints.x[this.chessPiecesPos.x].value + "| j: " +this.roadPoints.y[this.chessPiecesPos.y].value,20,40,"#000000");
+// 		game.debug.text("playerScore: "+this.playerScore,20,60,"#000000");
+// 		game.debug.text("computerScore: "+this.computerScore,20,80,"#000000");
+// 		game.debug.text("memoryMaxScore: "+this.memoryMaxScore,20,100,"#000000");
+ 		
+// 		game.debug.inputInfo(20,20,"#000000");
+ 	},
+ 	//画线 drawLine({graphics:graphics,lineWidth:1,color:0x00ff00,alpha:1})
+ 	drawLine:function(startX,startY,endX,endY,g){
+ 		//g ->  {graphics,lineWidth,color,alpha}
+ 		g.lineWidth = (!!g.lineWidth)?g.lineWidth:1;
+ 		g.alpha = (!!g.alpha)?g.alpha:1;
+ 		g.color = (!!g.color)?g.color:0x000000;
+ 		g.graphics.lineStyle(g.lineWidth,g.color,g.alpha);
+ 		g.graphics.moveTo(startX,startY);
+ 		g.graphics.lineTo(endX,endY);
+ 	},
+ 	//重写画方块的方法
+ 	drawRect:function(x, y, width, height, g){
+ 		g.lineWidth = (!!g.lineWidth)?g.lineWidth:1;
+ 		g.alpha = (!!g.alpha)?g.alpha:1;
+ 		g.color = (!!g.color)?g.color:0x000000;
+ 		g.graphics.lineStyle(g.lineWidth,g.color,g.alpha);
+ 		g.graphics.drawRect(x,y,width,height);
+ 	},
+ 	//绘制棋盘
+ 	drawCheckerboard:function(){
+ 		var me = this;
+// 		line = new Phaser.Line(0, 0, 500, 500);
+ 		g = game.add.graphics(0,0);
+
+ 		me.drawRect(1,1,598,798,{graphics:g,lineWidth:2});
+// 		this.drawRect(71,81,450,450,{graphics:g});
+ 		//横纵画16条线
+ 		for(var i=0,x=me.topX,y=me.topY;i<15;i++){
+ 			//画竖线
+ 			me.drawLine(x,me.topY,x,me.topY+me.roadWidth*14,{graphics:g});
+ 			//竖线时，横坐标右移，记录横坐标x
+ 			me.roadPoints.x.push({
+ 				value:x,
+ 				text:game.add.text(
+ 					x-me.roadWidth/6, 
+ 					me.topY+me.roadWidth*14+me.roadWidth/3, 
+ 					String(i+1),
+ 					{ font: me.roadWidth/2+"px Arial", fill: "#ffffff", align: "center" })
+ 			});
+ 			x += me.roadWidth;
+ 			//画横线
+ 			me.drawLine(me.topX,y,me.topX+me.roadWidth*14,y,{graphics:g});
+ 			//横线时，纵坐标下移，记录纵坐标y
+ 			me.roadPoints.y.push({
+ 				value:y,
+ 				text:game.add.text(
+ 					((15-i)<10?me.topX-me.roadWidth/2:me.topX-me.roadWidth/1.5)-me.roadWidth/5, 
+ 					y-me.roadWidth/3, 
+ 					String(15-i),
+ 					{ font: me.roadWidth/2+"px Arial", fill: "#ffffff", align: "right" })
+ 			});
+ 			y += me.roadWidth;
+ 			//画行列号
+ 		}
+// 		me.roadPoints.y[5].text._text; //取该行行号，行号=数组下标+1
+ 	},
+ 	//绘制棋子，创建棋子对象,白子=0 | 黑子=1
+ 	drawChessPieces:function(pieceType){
+ 		var me = this;
+ 		//创建棋子图像
+ 		//circle = new Phaser.Circle(game.world.centerX, 100,64);
+ 		var bmd = game.add.bitmapData(me.roadWidth,me.roadWidth);
+ 		//bmd.ctx 是html5 canvas原生的对象：ctx = Canvas.getContext("2d");
+ 		bmd.ctx.beginPath();
+ 		//arc通过画弧实现画圆，arc(圆心x,圆心y,起始角度,结束角度,false顺时针)
+ 		bmd.ctx.arc(me.roadWidth/2,me.roadWidth/2,me.roadWidth/2-2,0,Math.PI*2,false);
+ 		bmd.ctx.strokeStyle = '#000000';
+ 		bmd.ctx.lineWidth = 2;
+ 		bmd.ctx.stroke();
+ 		if(pieceType===0 || pieceType==='white'){
+ 			bmd.ctx.fillStyle = '#FFFFFF';
+ 			bmd.pieceType = 0;
+ 			bmd.pieceTypeName = 'white';
+ 		}else if(pieceType===1 || pieceType==='black'){
+ 			bmd.ctx.fillStyle = '#000000';
+ 			bmd.pieceType = 1;
+ 			bmd.pieceTypeName = 'black';
+ 		}else{
+ 			bmd.ctx.fillStyle = '#000000';
+ 			bmd.pieceType = 1;
+ 			bmd.pieceTypeName = 'black';
+ 		}
+ 		bmd.ctx.fill();
+ 		return bmd;
+ 	},
+ 	//着棋
+ 	dropPiece:function(pieceType,x,y){
+ 		var me = this;
+ 		if(me.chessPiecesAllPos[x][y] === 0 || me.chessPiecesAllPos[x][y] === 1){
+ 			return false; //位置已被占用
+ 		}
+ 		//绘制棋子
+ 		var bmd = me.drawChessPieces(pieceType);
+ 		//面板上添加棋子
+ 		var sprite = game.add.sprite(me.roadPoints.x[x].value-me.roadWidth/2, me.roadPoints.y[y].value-me.roadWidth/2, bmd);
+ 		sprite.pieceType = bmd.pieceType;
+ 		sprite.pieceTypeName = bmd.pieceTypeName;
+ 		//棋谱上添加棋子
+ 		me.chessPiecesAllPos[x][y] = sprite.pieceType;
+ 		me.chessPiecesAllSpr[x][y] = sprite;
+ 		return sprite;
+ 	}
+ }
+
+
+ //game.state是一个状态池，给这个状态池添加回调函数，当状态启动时会自动调用函数
+ game.state.add('play',wuziqi.play);
+ //启动load状态（相当于调用上面Demo.Load函数）
+ game.state.start('play');
+
+ </script>
+</html>
